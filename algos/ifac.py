@@ -17,8 +17,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'w
 
 from wfcrl.rewards import FilteredStep, TrackReward
 from wfcrl import environments as envs
-from wfcrl.rewarss import *
-from wfcrl.extractors import FourierExtractor, DfacSPaceExtractor_max, DfacSPaceExtractor_track
+from wfcrl.rewards import *
+from wfcrl.extractors import *
 from utils import LocalSummaryWriter, plot_env_history
 from agents import *
 
@@ -46,7 +46,7 @@ class Args:
     """the id of the environment"""
     total_timesteps: int = 2000
     """total timesteps of the experiments"""
-    control: str = 'yaw'
+    control: str = 'ct'
     """type of control used ('yaw', 'pitch', 'ct')"""
     task: str = 'track'
     """objective ('max' or 'track')"""
@@ -54,11 +54,11 @@ class Args:
     """reward function type for maximisation task"""
     p_ref =2.5
     """reference power for simple tracking signal creation"""
-    action_bound: float = 3
+    action_bound: float = 0.1
     """Bounds on the action space"""
-    action_max: int = 40
+    action_max: int = 0.8
     """maximum control angle value in state space"""
-    action_min: int = -1
+    action_min: int = 0.2
     """minimum control angle value in state space"""
     agent_type : str = 'normal'
     "Agent type (normal, bounded or beta)"
@@ -171,7 +171,7 @@ if __name__ == "__main__":
     local_obs_space = env.observation_space(env.possible_agents[0])
     global_obs_space = env.state_space
     action_space = env.action_space(env.possible_agents[0])[args.control]
-    partial_obs_extractor = DfacSPaceExtractor_max(local_obs_space, global_obs_space) if args.task == 'max' else DfacSPaceExtractor_track(local_obs_space, global_obs_space, track_power)
+    partial_obs_extractor = DfacSpaceExtractor_max(local_obs_space, global_obs_space, args.control) if args.task == 'max' else DfacSpaceExtractor_track(local_obs_space, global_obs_space, args.control, track_power)
     partial_obs_space = partial_obs_extractor.observation_space
     features_extractor_params = {
         "order":args.fourier_order,
@@ -299,6 +299,7 @@ if __name__ == "__main__":
     env.close()
     writer.close()
 
+    # env.mdp.interface.render(out_dir=f"runs/{run_name}/")
 
     # Prepare plots
     fig = plot_env_history(env)

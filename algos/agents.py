@@ -2,9 +2,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.distributions import Normal, Beta
-from extractors import FourierExtractor
+from wfcrl.extractors import FourierExtractor
 
-AGENT_TYPE_DICT = {'beta' : Agent_beta, 'normal' : Agent_normal, 'bounded' :  Agent_bounded}
+
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
@@ -192,3 +192,4 @@ class Agent_beta(nn.Module):
         # Return the scaled action, log probability, entropy, and value
         return scaled_action, log_prob, distribution.entropy(), self.critic(x)
 
+AGENT_TYPE_DICT = {'beta' : Agent_beta, 'normal' : Agent_normal, 'bounded' :  Agent_bounded}
