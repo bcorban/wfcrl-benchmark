@@ -1,6 +1,7 @@
 import decimal
+import os
 import warnings
-
+import re
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -23,19 +24,6 @@ def get_env_history(env):
     loads = pd.DataFrame(np.abs(loads).sum(0), columns=columns)
     return yaws, powers, loads, rewards
 
-def plot_env_history(env):
-    yaws, powers, loads, _ = get_env_history(env)
-    fig, ax = plt.subplots(ncols=3, figsize=(15, 5))
-    ax0 = sns.lineplot(yaws, ax=ax[0])
-    ax1 = sns.lineplot(powers.sum(1), ax=ax[1])
-    ax2 = sns.lineplot(loads.sum(1), ax=ax[2])
-    ax0.set(ylabel="Yaw (°)", xlabel="Iterations")
-    ax1.set(ylabel="Normalized Power (MW)", xlabel="Iterations")
-    ax2.set(ylabel="Loading Indicator", xlabel="Iterations")
-    ax0.grid(True)
-    ax1.grid(True)
-    ax2.grid(True)
-    return fig
 
 def less_than_180(angle):
     # modulo for [-180, 180]
@@ -220,3 +208,84 @@ class LocalSummaryWriter(SummaryWriter):
     # def add_text(self, tag, text_string, **kwargs):
     #     
     #     super().add_text(tag, text_string, **kwargs)
+
+
+def plot_env_history(env, track_power, args, run_name, out_dir):
+    columns = [f"T{i + 1}" for i in range(env.num_turbines)]
+    control = np.c_[[[h[args.control] for h in env.history[agent]["observation"]] for agent in env.possible_agents]].T
+    powers = np.c_[[env.history[agent]["power"] for agent in env.possible_agents]].T
+    loads = np.c_[[env.history[agent]["load"] for agent in env.possible_agents]].mean(axis=2).T
+
+    control = pd.DataFrame(control, columns=columns)
+    powers = pd.DataFrame(powers, columns=columns)
+
+    control.to_csv(f"runs/{run_name}/control.csv")
+    loads = pd.DataFrame(loads.squeeze(), columns=columns)
+    loads.to_csv(f"runs/{run_name}/loads.csv")
+    powers.to_csv(f"runs/{run_name}/powers.csv")
+
+    fig, ax = plt.subplots(ncols=2, figsize=(10, 5))
+    ax0 = sns.lineplot(control, ax=ax[0])
+    ax1 = sns.lineplot(powers.sum(1), ax=ax[1])
+    if args.task == 'track': sns.lineplot(track_power, ax=ax[1], color='black')
+    ax0.set(ylabel=args.control)
+    ax1.set(ylabel="Power (MW)", xlabel="Timestep")
+    plt.tight_layout()
+    fig.savefig(out_dir + 'plot.png', dpi=300)
+
+    fig_loads = plt.figure(figsize=(10, 6))
+    sns.lineplot(loads.sum(1))
+    for i, column in enumerate(loads.columns):
+        sns.lineplot(loads[column], color=sns.color_palette("deep", desat=0.5)[i])
+    plt.xlabel('Timestep')
+    plt.ylabel('Loads')
+    fig_loads.savefig(out_dir + 'loads.png', dpi=300)
+
+    # fig_loads, ax_l = plt.subplots(ncols=5, figsize=(20, 5))
+    # # print(loads.shape)
+    # sns.lineplot(np.mean(loads,axis=0), ax=ax_l[0])
+    # for i in range(loads.shape[0]):
+    #     # sns.lineplot(loads[i,:,:], ax=ax_l[i+1])
+    #     sns.lineplot(loads[i, :], ax=ax_l[i + 1])
+    # fig_loads.savefig(out_dir+'loads.png',dpi=300)
+    #
+
+    plt.show()
+
+
+def get_run_name(args):
+    # base_name = f"{args.task}__{args.control}__{args.env_id}__{args.exp_name}"
+
+    parts = args.env_id.split('_')
+    layout = '_'.join(parts[1:-1])
+    simulator = parts[-1]
+
+    base_name = f"{args.task}__{args.control}__{args.exp_name}"
+    # List all directories in the given path
+    if not os.path.isdir(os.path.join(f'./runs/{simulator}/{layout}/')):
+        os.makedirs(os.path.join(f'./runs/{simulator}/{layout}/'))
+    directories = [d for d in os.listdir(f'./runs/{simulator}/{layout}/') if
+                   os.path.isdir(os.path.join(f'./runs/{simulator}/{layout}/', d))]
+
+    # Regex to match the pattern 'base_name_number'
+    pattern = re.compile(r'^' + re.escape(base_name) + r'_(\d+)$')
+
+    # Find all matching directories and extract the number
+    numbers = []
+    for d in directories:
+        match = pattern.match(d)
+        if match:
+            numbers.append(int(match.group(1)))
+
+    # Determine the next number in the sequence
+    if numbers:
+        next_number = max(numbers) + 1
+    else:
+        next_number = 1
+
+    # Create the new directory name
+    run_name = f"{simulator}/{layout}/{base_name}_{next_number}"
+    print(run_name)
+    return run_name
+
+
